@@ -3,144 +3,249 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>匯率</title>
+    <title>匯率計算機</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            background: #191919;
+            background: #2a2a2a;
             color: #e0e0e0;
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-            padding: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 32px 20px;
         }
-        .header {
+        .converter {
+            width: 100%;
+            max-width: 380px;
+        }
+        .converter-row {
             display: flex;
             align-items: center;
             gap: 10px;
-            margin-bottom: 16px;
+            margin-bottom: 14px;
         }
-        .header h2 {
-            font-size: 18px;
-            font-weight: 600;
-            color: #ffffff;
-        }
-        .update-time {
-            font-size: 11px;
-            color: #888;
-            margin-bottom: 16px;
-        }
-        .rates-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-            gap: 12px;
-        }
-        .rate-card {
-            background: #2a2a2a;
+        .converter-row select {
+            flex: 1;
+            background: #3a3a3a;
+            color: #fff;
+            border: 1px solid #4a4a4a;
             border-radius: 8px;
-            padding: 14px;
+            padding: 14px 14px;
+            font-size: 15px;
+            appearance: none;
+            -webkit-appearance: none;
+            cursor: pointer;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23aaa'%3E%3Cpath d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 14px center;
+        }
+        .converter-row input {
+            width: 110px;
+            background: #3a3a3a;
+            color: #fff;
+            border: 1px solid #4a4a4a;
+            border-radius: 8px;
+            padding: 14px 14px;
+            font-size: 16px;
+            font-weight: 600;
+            text-align: right;
+        }
+        .converter-row input:focus,
+        .converter-row select:focus {
+            outline: none;
+            border-color: #777;
+        }
+        .converter-row input[readonly] {
+            background: #2f2f2f;
+            border-color: #3a3a3a;
+            color: #888;
+        }
+        .swap-btn {
+            display: flex;
+            justify-content: center;
+            margin: 10px 0;
+        }
+        .swap-btn button {
+            background: #444;
+            border: none;
+            color: #fff;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 18px;
+            transition: background 0.2s;
+        }
+        .swap-btn button:hover {
+            background: #555;
+        }
+        .result {
             text-align: center;
-            border: 1px solid #333;
+            margin-top: 24px;
+            padding-top: 24px;
+            border-top: 1px solid #3a3a3a;
         }
-        .rate-card .pair {
-            font-size: 12px;
-            color: #aaa;
-            margin-bottom: 6px;
-            font-weight: 500;
-        }
-        .rate-card .value {
-            font-size: 22px;
+        .result .value {
+            font-size: 36px;
             font-weight: 700;
             color: #ffffff;
+            letter-spacing: -0.5px;
         }
-        .rate-card .unit {
-            font-size: 11px;
-            color: #888;
-            margin-top: 4px;
-        }
-        .base-note {
-            margin-top: 16px;
-            font-size: 11px;
-            color: #666;
-            text-align: center;
-        }
-        .loading {
-            text-align: center;
-            color: #888;
-            padding: 40px;
-        }
-        .error {
-            text-align: center;
-            color: #ff6b6b;
-            padding: 20px;
+        .result .label {
             font-size: 13px;
+            color: #888;
+            margin-top: 8px;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 24px;
+            font-size: 10px;
+            color: #555;
         }
     </style>
 </head>
 <body>
-    <div class="header">
-        <h2>💱 即時匯率</h2>
+    <div class="converter">
+        <div class="converter-row">
+            <select id="from-currency"></select>
+            <input type="number" id="from-amount" value="1000" min="0" step="any">
+        </div>
+        <div class="swap-btn">
+            <button id="swap-btn" title="交換幣別">⇅</button>
+        </div>
+        <div class="converter-row">
+            <select id="to-currency"></select>
+            <input type="number" id="to-amount" readonly tabindex="-1">
+        </div>
+        <div class="result">
+            <div class="value" id="result-value">—</div>
+            <div class="label" id="result-label">載入中...</div>
+        </div>
+        <div class="footer">資料來源：ExchangeRate API ｜ 每小時更新</div>
     </div>
-    <div class="update-time" id="update-time">載入中...</div>
-    <div class="rates-grid" id="rates-grid">
-        <div class="loading">載入匯率資料中...</div>
-    </div>
-    <div class="base-note">基準：1 TWD 兌換各幣別 ｜ 資料來源：ExchangeRate API</div>
 
     <script>
-        const BASE = 'TWD';
-        const TARGETS = [
+        const CURRENCIES = [
+            { code: 'TWD', name: '新台幣' },
             { code: 'JPY', name: '日圓' },
             { code: 'USD', name: '美元' },
             { code: 'EUR', name: '歐元' },
             { code: 'KRW', name: '韓元' },
             { code: 'GBP', name: '英鎊' },
             { code: 'CNY', name: '人民幣' },
+            { code: 'HKD', name: '港幣' },
             { code: 'THB', name: '泰銖' },
             { code: 'SGD', name: '新加坡元' },
+            { code: 'AUD', name: '澳幣' },
+            { code: 'CAD', name: '加拿大元' },
+            { code: 'NZD', name: '紐西蘭元' },
+            { code: 'CHF', name: '瑞士法郎' },
+            { code: 'SEK', name: '瑞典克朗' },
+            { code: 'NOK', name: '挪威克朗' },
+            { code: 'DKK', name: '丹麥克朗' },
+            { code: 'VND', name: '越南盾' },
+            { code: 'MYR', name: '馬來西亞令吉' },
+            { code: 'PHP', name: '菲律賓披索' },
+            { code: 'IDR', name: '印尼盾' },
+            { code: 'INR', name: '印度盧比' },
+            { code: 'AED', name: '阿聯酋迪拉姆' },
+            { code: 'SAR', name: '沙烏地里亞爾' },
+            { code: 'TRY', name: '土耳其里拉' },
+            { code: 'ZAR', name: '南非蘭特' },
+            { code: 'MXN', name: '墨西哥披索' },
+            { code: 'BRL', name: '巴西雷亞爾' },
+            { code: 'RUB', name: '俄羅斯盧布' },
+            { code: 'PLN', name: '波蘭茲羅提' },
+            { code: 'CZK', name: '捷克克朗' },
+            { code: 'HUF', name: '匈牙利福林' },
+            { code: 'ILS', name: '以色列謝克爾' },
+            { code: 'EGP', name: '埃及鎊' },
+            { code: 'CLP', name: '智利披索' },
+            { code: 'ARS', name: '阿根廷披索' },
+            { code: 'COP', name: '哥倫比亞披索' },
+            { code: 'PEN', name: '祕魯索爾' },
+            { code: 'NGN', name: '奈及利亞奈拉' },
+            { code: 'KES', name: '肯亞先令' },
         ];
+
+        let allRates = {};
+
+        const fromSelect = document.getElementById('from-currency');
+        const toSelect = document.getElementById('to-currency');
+        const fromAmount = document.getElementById('from-amount');
+        const toAmount = document.getElementById('to-amount');
+        const resultValue = document.getElementById('result-value');
+        const resultLabel = document.getElementById('result-label');
+
+        function populateSelects() {
+            CURRENCIES.forEach(c => {
+                fromSelect.add(new Option(`${c.code} - ${c.name}`, c.code));
+                toSelect.add(new Option(`${c.code} - ${c.name}`, c.code));
+            });
+            fromSelect.value = 'TWD';
+            toSelect.value = 'JPY';
+        }
+
+        function convert() {
+            if (!allRates || Object.keys(allRates).length === 0) return;
+
+            const from = fromSelect.value;
+            const to = toSelect.value;
+            const amount = parseFloat(fromAmount.value) || 0;
+
+            const fromRate = allRates[from];
+            const toRate = allRates[to];
+            if (!fromRate || !toRate) return;
+
+            const rate = toRate / fromRate;
+            const result = amount * rate;
+
+            let displayResult;
+            if (result >= 10000) {
+                displayResult = result.toLocaleString('en-US', { maximumFractionDigits: 1 });
+            } else if (result >= 100) {
+                displayResult = result.toLocaleString('en-US', { maximumFractionDigits: 2 });
+            } else if (result >= 1) {
+                displayResult = result.toFixed(4);
+            } else {
+                displayResult = result.toFixed(6);
+            }
+
+            toAmount.value = displayResult;
+            resultValue.textContent = `${displayResult} ${to}`;
+
+            const unitRate = rate >= 1 ? rate.toFixed(4) : rate.toFixed(6);
+            resultLabel.textContent = `1 ${from} = ${unitRate} ${to}`;
+        }
 
         async function fetchRates() {
             try {
-                const resp = await fetch(`https://open.er-api.com/v6/latest/${BASE}`);
+                const resp = await fetch('https://open.er-api.com/v6/latest/USD');
                 const data = await resp.json();
-
                 if (data.result !== 'success') throw new Error('API error');
-
-                const grid = document.getElementById('rates-grid');
-                grid.innerHTML = '';
-
-                TARGETS.forEach(target => {
-                    const rate = data.rates[target.code];
-                    if (!rate) return;
-
-                    let displayRate;
-                    if (rate >= 100) {
-                        displayRate = rate.toFixed(2);
-                    } else if (rate >= 1) {
-                        displayRate = rate.toFixed(4);
-                    } else {
-                        displayRate = rate.toFixed(4);
-                    }
-
-                    const card = document.createElement('div');
-                    card.className = 'rate-card';
-                    card.innerHTML = `
-                        <div class="pair">TWD → ${target.code}</div>
-                        <div class="value">${displayRate}</div>
-                        <div class="unit">${target.name}</div>
-                    `;
-                    grid.appendChild(card);
-                });
-
-                const now = new Date();
-                document.getElementById('update-time').textContent =
-                    `更新時間：${now.toLocaleDateString('zh-TW')} ${now.toLocaleTimeString('zh-TW', {hour: '2-digit', minute: '2-digit'})}`;
-
+                allRates = data.rates;
+                convert();
+                resultLabel.textContent && (resultLabel.textContent = resultLabel.textContent);
             } catch (err) {
-                document.getElementById('rates-grid').innerHTML =
-                    `<div class="error">無法載入匯率資料，請稍後再試<br>${err.message}</div>`;
+                resultValue.textContent = '—';
+                resultLabel.textContent = '載入失敗，請重新整理';
             }
         }
 
+        fromSelect.addEventListener('change', convert);
+        toSelect.addEventListener('change', convert);
+        fromAmount.addEventListener('input', convert);
+
+        document.getElementById('swap-btn').addEventListener('click', () => {
+            const temp = fromSelect.value;
+            fromSelect.value = toSelect.value;
+            toSelect.value = temp;
+            convert();
+        });
+
+        populateSelects();
         fetchRates();
         setInterval(fetchRates, 3600000);
     </script>
